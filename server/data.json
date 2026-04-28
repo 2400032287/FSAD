@@ -1,0 +1,100 @@
+{
+  "session": {
+    "role": "citizen",
+    "email": "sahasrameka9@gmail.com",
+    "name": "Sahasrameka9"
+  },
+  "users": [
+    {
+      "id": 6,
+      "name": "Sahasrameka9",
+      "email": "sahasrameka9@gmail.com",
+      "role": "citizen",
+      "status": "active"
+    },
+    {
+      "id": 1,
+      "name": "sahasra",
+      "role": "citizen",
+      "status": "active",
+      "email": "sahasra@example.com"
+    },
+    {
+      "id": 2,
+      "name": "teju",
+      "role": "citizen",
+      "status": "active",
+      "email": "teju@example.com"
+    },
+    {
+      "id": 3,
+      "name": "tanu",
+      "role": "politician",
+      "status": "active",
+      "email": "tanu@example.com"
+    },
+    {
+      "id": 4,
+      "name": "deepthi",
+      "role": "moderator",
+      "status": "active",
+      "email": "deepthi@example.com"
+    },
+    {
+      "id": 5,
+      "name": "System Admin",
+      "role": "admin",
+      "status": "active",
+      "email": "admin@example.com"
+    }
+  ],
+  "issues": [
+    {
+      "id": 2,
+      "title": "roads",
+      "description": "leakage",
+      "category": "Infrastructure",
+      "location": "3",
+      "createdBy": "Sahasrameka9",
+      "priority": "Medium",
+      "status": "Open",
+      "response": "",
+      "updatedAt": "2026-04-07"
+    },
+    {
+      "id": 1,
+      "title": "Streetlight outage on Maple Street",
+      "description": "Three lights have been out for 2 weeks near bus stop.",
+      "category": "Infrastructure",
+      "location": "Ward 4",
+      "status": "Open",
+      "createdBy": "Ava Citizen",
+      "priority": "High",
+      "response": "",
+      "updatedAt": "2026-04-07"
+    }
+  ],
+  "feedback": [
+    {
+      "id": 1,
+      "message": "Weekly transit updates are helpful. Please include route maps.",
+      "type": "Suggestion",
+      "createdBy": "Liam Citizen",
+      "status": "Pending",
+      "flagged": false,
+      "moderatorNote": "",
+      "createdAt": "2026-04-07"
+    }
+  ],
+  "updates": [
+    {
+      "id": 1,
+      "title": "Budget Hearing Reminder",
+      "message": "Public budget hearing is scheduled for Friday at City Hall.",
+      "audience": "All Citizens",
+      "author": "Maya Patel",
+      "createdAt": "2026-04-07"
+    }
+  ],
+  "moderationLog": []
+}

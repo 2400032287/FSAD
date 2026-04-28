@@ -29,239 +29,165 @@ const ROLE_CONFIG = [
   },
 ];
 
-const INITIAL_USERS = [
-  { id: 1, name: "Ava Citizen", role: "citizen", status: "active" },
-  { id: 2, name: "Liam Citizen", role: "citizen", status: "active" },
-  { id: 3, name: "Maya Patel", role: "politician", status: "active" },
-  { id: 4, name: "Rohan Das", role: "moderator", status: "active" },
-  { id: 5, name: "System Admin", role: "admin", status: "active" },
-];
-const PRIVILEGED_USERS = [
-  { email: "maya.patel@gmail.com", role: "politician", name: "Maya Patel" },
-  { email: "rohan.das@gmail.com", role: "moderator", name: "Rohan Das" },
-  { email: "system.admin@gmail.com", role: "admin", name: "System Admin" },
-];
-const STORAGE_KEY = "civicconnect_state_v1";
+const API_BASE =
+  import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? "/api" : "http://localhost:5000/api");
+const SESSION_KEY = "civicconnect_session_v1";
 
-const today = () => new Date().toISOString().slice(0, 10);
-const nextId = (items) =>
-  items.length > 0 ? Math.max(...items.map((item) => item.id)) + 1 : 1;
 const formatNameFromEmail = (email) =>
   email
     .split("@")[0]
     .split(".")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-const getInitialState = () => {
+
+const getStoredSession = () => {
   if (typeof window === "undefined") return null;
+
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (
-      !parsed ||
-      !Array.isArray(parsed.users) ||
-      !Array.isArray(parsed.issues) ||
-      !Array.isArray(parsed.feedback) ||
-      !Array.isArray(parsed.updates) ||
-      !Array.isArray(parsed.moderationLog)
-    ) {
-      return null;
-    }
-    return parsed;
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 };
 
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 function App() {
-  const persisted = useMemo(() => getInitialState(), []);
-  const [session, setSession] = useState(persisted?.session ?? null);
-  const [users, setUsers] = useState(persisted?.users ?? INITIAL_USERS);
-  const [issues, setIssues] = useState(
-    persisted?.issues ?? [
-    {
-      id: 1,
-      title: "Streetlight outage on Maple Street",
-      description: "Three lights have been out for 2 weeks near bus stop.",
-      category: "Infrastructure",
-      location: "Ward 4",
-      status: "Open",
-      createdBy: "Ava Citizen",
-      priority: "High",
-      response: "",
-      updatedAt: today(),
-    },
-  ],
-  );
-  const [feedback, setFeedback] = useState(
-    persisted?.feedback ?? [
-    {
-      id: 1,
-      message: "Weekly transit updates are helpful. Please include route maps.",
-      type: "Suggestion",
-      createdBy: "Liam Citizen",
-      status: "Pending",
-      flagged: false,
-      moderatorNote: "",
-      createdAt: today(),
-    },
-  ],
-  );
-  const [updates, setUpdates] = useState(
-    persisted?.updates ?? [
-    {
-      id: 1,
-      title: "Budget Hearing Reminder",
-      message: "Public budget hearing is scheduled for Friday at City Hall.",
-      audience: "All Citizens",
-      author: "Maya Patel",
-      createdAt: today(),
-    },
-  ],
-  );
-  const [moderationLog, setModerationLog] = useState(
-    persisted?.moderationLog ?? [],
-  );
+  const [session, setSession] = useState(getStoredSession);
+  const [users, setUsers] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [feedback, setFeedback] = useState([]);
+  const [updates, setUpdates] = useState([]);
+  const [moderationLog, setModerationLog] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadState = async () => {
+    try {
+      setError("");
+      await request("/health");
+      setUsers([]);
+      setIssues([]);
+      setFeedback([]);
+      setUpdates([]);
+      setModerationLog([]);
+    } catch {
+      setError("Live frontend is running, but the backend server is not connected.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadState();
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        users,
-        issues,
-        feedback,
-        updates,
-        moderationLog,
-        session,
-      }),
-    );
-  }, [users, issues, feedback, updates, moderationLog, session]);
 
-  const addIssue = (payload) => {
-    setIssues((prev) => [
-      {
-        id: nextId(prev),
-        status: "Open",
-        response: "",
-        updatedAt: today(),
-        ...payload,
-      },
-      ...prev,
-    ]);
+    if (session) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  }, [session]);
+
+  const addIssue = async (payload) => {
+    const created = await request("/issues", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    setIssues((prev) => [created.issue ?? created, ...prev]);
   };
 
-  const addFeedback = (payload) => {
-    const lowered = payload.message.toLowerCase();
-    const flagged = ["hate", "abuse", "threat"].some((word) =>
-      lowered.includes(word),
-    );
+  const addFeedback = async (payload) => {
+    const created = {
+      id: Date.now(),
+      ...payload,
+      status: "Pending",
+      createdAt: new Date().toISOString(),
+    };
 
-    setFeedback((prev) => [
-      {
-        id: nextId(prev),
-        status: flagged ? "Needs Review" : "Pending",
-        flagged,
-        moderatorNote: "",
-        createdAt: today(),
-        ...payload,
-      },
-      ...prev,
-    ]);
+    setFeedback((prev) => [created, ...prev]);
   };
 
-  const respondToIssue = ({ issueId, response, status, politician }) => {
+  const respondToIssue = async ({ issueId, response, status, politician }) => {
+    const updated = await request(`/issues/${issueId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, response, politician }),
+    });
+
     setIssues((prev) =>
-      prev.map((item) =>
-        item.id === issueId
-          ? {
-              ...item,
-              response: `${politician}: ${response}`,
-              status,
-              updatedAt: today(),
-            }
-          : item,
-      ),
+      prev.map((item) => (item.id === issueId ? (updated.issue ?? updated) : item)),
     );
   };
 
-  const postUpdate = (payload) => {
-    setUpdates((prev) => [
-      { id: nextId(prev), createdAt: today(), ...payload },
-      ...prev,
-    ]);
+  const postUpdate = async (payload) => {
+    const created = {
+      id: Date.now(),
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+
+    setUpdates((prev) => [created, ...prev]);
   };
 
-  const moderateFeedback = ({ feedbackId, action, moderatorNote, moderator }) => {
+  const moderateFeedback = async ({ feedbackId, action, moderatorNote, moderator }) => {
     setFeedback((prev) =>
       prev.map((item) =>
         item.id === feedbackId
           ? {
               ...item,
-              flagged: action !== "Approved",
-              status: action,
+              status: action ?? item.status,
               moderatorNote,
+              moderator,
             }
           : item,
       ),
     );
-
-    setModerationLog((prev) => [
-      {
-        id: nextId(prev),
-        actor: moderator,
-        target: `Feedback #${feedbackId}`,
-        action,
-        note: moderatorNote,
-        createdAt: today(),
-      },
-      ...prev,
-    ]);
   };
 
-  const resolveIssue = ({ issueId, decision, note, moderator }) => {
+  const resolveIssue = async ({ issueId, decision, note, moderator }) => {
+    const updated = await request(`/issues/${issueId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: decision, note, moderator }),
+    });
+
     setIssues((prev) =>
-      prev.map((item) =>
-        item.id === issueId
-          ? {
-              ...item,
-              status: decision,
-              response: note
-                ? item.response
-                  ? `${item.response} | Moderator note: ${note}`
-                  : `Moderator note: ${note}`
-                : item.response,
-              updatedAt: today(),
-            }
-          : item,
-      ),
+      prev.map((item) => (item.id === issueId ? (updated.issue ?? updated) : item)),
     );
-
-    setModerationLog((prev) => [
-      {
-        id: nextId(prev),
-        actor: moderator,
-        target: `Issue #${issueId}`,
-        action: decision,
-        note,
-        createdAt: today(),
-      },
-      ...prev,
-    ]);
   };
 
-  const updateUserRole = (userId, nextRole) => {
+  const updateUserRole = async (userId, nextRole) => {
     setUsers((prev) =>
       prev.map((item) => (item.id === userId ? { ...item, role: nextRole } : item)),
     );
   };
 
-  const toggleUserStatus = (userId) => {
+  const toggleUserStatus = async (userId) => {
     setUsers((prev) =>
       prev.map((item) =>
         item.id === userId
-          ? { ...item, status: item.status === "active" ? "suspended" : "active" }
+          ? {
+              ...item,
+              status: item.status === "active" ? "suspended" : "active",
+            }
           : item,
       ),
     );
@@ -326,20 +252,22 @@ function App() {
       default:
         return (
           <Login
-            onLogin={({ email, role: selectedRole }) => {
-              const privileged = PRIVILEGED_USERS.find((user) => user.email === email);
-              const role = privileged?.role ?? selectedRole ?? "citizen";
-              const name = privileged?.name ?? formatNameFromEmail(email);
+            roles={ROLE_CONFIG}
+            onLogin={({ role, email }) =>
               setSession({
                 role,
                 email,
-                name,
-              });
-            }}
+                name: formatNameFromEmail(email),
+              })
+            }
           />
         );
     }
   };
+
+  if (loading) {
+    return <main className="app-shell">Loading platform data...</main>;
+  }
 
   return (
     <>
@@ -352,7 +280,10 @@ function App() {
           onLogout={() => setSession(null)}
         />
       )}
-      <main className="app-shell">{renderPage()}</main>
+      <main className="app-shell">
+        {error ? <p>{error}</p> : null}
+        {renderPage()}
+      </main>
     </>
   );
 }
